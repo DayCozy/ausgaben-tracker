@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ausgaben-Tracker</title>
+  <!-- iPhone: als App zum Home-Bildschirm hinzufügen -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ausgaben">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Ausgaben-Tracker</h1>
+    <div class="month-nav">
+      <button class="icon-btn" id="prevMonth" aria-label="Vorheriger Monat">‹</button>
+      <span id="monthLabel" class="month-label"></span>
+      <button class="icon-btn" id="nextMonth" aria-label="Nächster Monat">›</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Neue Ausgabe -->
+    <section class="card" id="formCard">
+      <h2 id="formTitle">Neue Ausgabe</h2>
+      <form id="expenseForm" autocomplete="off">
+        <label>Betrag (€)
+          <input id="fAmount" inputmode="decimal" placeholder="z. B. 4,50" required>
+        </label>
+        <label>Wofür?
+          <input id="fNote" placeholder="z. B. Mensa Mittagessen" maxlength="80" required>
+        </label>
+        <label>Kategorie
+          <select id="fCategory"></select>
+        </label>
+        <label>Datum
+          <input id="fDate" type="date" required>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="submitBtn">Hinzufügen</button>
+          <button type="button" class="btn ghost hidden" id="cancelEdit">Abbrechen</button>
+        </div>
+        <p class="form-error" id="formError" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- Kennzahlen -->
+    <section class="stats" aria-label="Überblick">
+      <div class="card stat">
+        <span class="stat-label">Ausgaben im Monat</span>
+        <span class="stat-value" id="statTotal">–</span>
+        <span class="stat-sub" id="statDelta"></span>
+      </div>
+      <div class="card stat">
+        <span class="stat-label">Ø pro Tag</span>
+        <span class="stat-value" id="statAvg">–</span>
+        <span class="stat-sub" id="statCount"></span>
+      </div>
+      <div class="card stat">
+        <span class="stat-label">Größte Kategorie</span>
+        <span class="stat-value small" id="statTop">–</span>
+        <span class="stat-sub" id="statTopSub"></span>
+      </div>
+      <div class="card stat">
+        <div class="stat-head">
+          <span class="stat-label">Monatsbudget</span>
+          <button class="link-btn" id="editBudget">ändern</button>
+        </div>
+        <span class="stat-value" id="statBudget">–</span>
+        <div class="meter" id="budgetMeter" hidden><div class="meter-fill" id="budgetFill"></div></div>
+        <span class="stat-sub" id="statBudgetSub"></span>
+      </div>
+    </section>
+
+    <!-- Kategorien -->
+    <section class="card" id="catCard">
+      <div class="card-head">
+        <h2>Nach Kategorie</h2>
+        <button class="link-btn" id="manageCats">Kategorien bearbeiten</button>
+      </div>
+      <div id="catBars" class="cat-bars"></div>
+    </section>
+
+    <!-- Verlauf -->
+    <section class="card" id="trendCard">
+      <h2>Letzte 6 Monate</h2>
+      <div id="trendChart" class="trend"></div>
+    </section>
+
+    <!-- Liste -->
+    <section class="card" id="listCard">
+      <div class="card-head">
+        <h2>Alle Ausgaben im Monat</h2>
+        <div class="list-tools">
+          <input id="search" type="search" placeholder="Suchen…" aria-label="Ausgaben durchsuchen">
+          <select id="filterCat" aria-label="Nach Kategorie filtern"></select>
+        </div>
+      </div>
+      <div id="list"></div>
+    </section>
+
+    <!-- Daten -->
+    <section class="card data-card">
+      <h2>Daten</h2>
+      <p class="muted">Deine Daten bleiben nur in diesem Browser gespeichert. Mach ab und zu ein Backup.</p>
+      <div class="data-actions">
+        <button class="btn" id="exportCsv">Als CSV exportieren</button>
+        <button class="btn" id="exportJson">Backup speichern</button>
+        <label class="btn">Backup laden<input type="file" id="importJson" accept="application/json" hidden></label>
+      </div>
+    </section>
+  </main>
+
+  <!-- Kategorien-Dialog -->
+  <dialog id="catDialog">
+    <form method="dialog" class="dialog-body">
+      <h2>Kategorien</h2>
+      <p class="muted">Bis zu 8 Kategorien. Löschen geht nur, wenn keine Ausgaben drin sind.</p>
+      <div id="catEditList"></div>
+      <div class="add-cat">
+        <input id="newCatName" placeholder="Neue Kategorie" maxlength="24">
+        <button type="button" class="btn" id="addCat">Hinzufügen</button>
+      </div>
+      <div class="form-actions"><button class="btn primary" value="close">Fertig</button></div>
+    </form>
+  </dialog>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
