@@ -17,7 +17,8 @@
 
   // ---------- State ----------
   let state = load();
-  let viewMonth = monthKey(new Date()); // "YYYY-MM"
+  let viewMode = state.viewMode === "week" ? "week" : "month"; // "week" | "month"
+  let viewKey = periodKeyFor(viewMode, new Date()); // Monat: "YYYY-MM", Woche: Montag "YYYY-MM-DD"
   let editingId = null;
   let catFilter = "";
   let methodFilter = "";
@@ -51,8 +52,41 @@
   const $ = (id) => document.getElementById(id);
   function monthKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
   function keyToDate(k) { const [y, m] = k.split("-").map(Number); return new Date(y, m - 1, 1); }
-  function shiftMonth(k, n) { const d = keyToDate(k); d.setMonth(d.getMonth() + n); return monthKey(d); }
-  function todayISO() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function isoDate(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function parseISO(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+  function todayISO() { return isoDate(new Date()); }
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function weekStart(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay() + 6) % 7)); } // Montag
+  function isoWeek(d) { // Kalenderwoche nach ISO 8601
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 3 - ((d.getDay() + 6) % 7));
+    const firstThu = new Date(t.getFullYear(), 0, 4);
+    return 1 + Math.round(((t - firstThu) / 864e5 - 3 + ((firstThu.getDay() + 6) % 7)) / 7);
+  }
+
+  // ---------- Zeiträume (Woche / Monat) ----------
+  function periodKeyFor(mode, d) { return mode === "week" ? isoDate(weekStart(d)) : monthKey(d); }
+  function periodRange(mode, key) {
+    const start = mode === "week" ? parseISO(key) : keyToDate(key);
+    const end = mode === "week" ? addDays(start, 7) : new Date(start.getFullYear(), start.getMonth() + 1, 1);
+    return { start, end, startISO: isoDate(start), endISO: isoDate(end), days: Math.round((end - start) / 864e5) };
+  }
+  function shiftPeriod(mode, key, n) {
+    const { start } = periodRange(mode, key);
+    return mode === "week" ? isoDate(addDays(start, 7 * n)) : monthKey(new Date(start.getFullYear(), start.getMonth() + n, 1));
+  }
+  function periodLabel(mode, key) {
+    if (mode === "month") return monthFmt.format(keyToDate(key));
+    const { start } = periodRange(mode, key), last = addDays(start, 6);
+    const range = start.getMonth() === last.getMonth()
+      ? `${start.getDate()}.–${last.getDate()}. ${monthShort.format(last)}`
+      : `${start.getDate()}. ${monthShort.format(start)} – ${last.getDate()}. ${monthShort.format(last)}`;
+    return `KW ${isoWeek(start)} · ${range}`;
+  }
+  function periodShort(mode, key) { return mode === "week" ? "KW " + isoWeek(parseISO(key)) : monthShort.format(keyToDate(key)); }
+  const WORDS = {
+    week: { in: "in der Woche", prev: "Vorwoche", this: "diese Woche", trend: "Letzte 8 Wochen", count: 8 },
+    month: { in: "im Monat", prev: "Vormonat", this: "diesen Monat", trend: "Letzte 6 Monate", count: 6 },
+  };
   function parseAmount(str) {
     const clean = String(str).trim().replace(/\s|€/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
     const n = Number(clean);
@@ -61,7 +95,11 @@
   function catById(id) { return state.categories.find((c) => c.id === id); }
   function catColor(c) { return c ? `var(--s${c.slot})` : "var(--muted)"; }
   function esc(s) { return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch])); }
-  function expensesIn(k) { return state.expenses.filter((e) => e.date.startsWith(k)); }
+  function expensesIn(mode, key) {
+    const { startISO, endISO } = periodRange(mode, key);
+    return state.expenses.filter((e) => e.date >= startISO && e.date < endISO);
+  }
+  const current = () => expensesIn(viewMode, viewKey);
   function sum(list) { return list.reduce((a, e) => a + e.amount, 0); }
 
   // ---------- Tooltip ----------
@@ -81,7 +119,14 @@
 
   // ---------- Render ----------
   function render() {
-    $("monthLabel").textContent = monthFmt.format(keyToDate(viewMonth));
+    const w = WORDS[viewMode];
+    $("monthLabel").textContent = periodLabel(viewMode, viewKey);
+    $("prevMonth").setAttribute("aria-label", viewMode === "week" ? "Vorherige Woche" : "Vorheriger Monat");
+    $("nextMonth").setAttribute("aria-label", viewMode === "week" ? "Nächste Woche" : "Nächster Monat");
+    for (const b of document.querySelectorAll("[data-mode]")) b.setAttribute("aria-pressed", String(b.dataset.mode === viewMode));
+    $("statTotalLabel").textContent = "Ausgaben " + w.in;
+    $("trendTitle").textContent = w.trend;
+    $("listTitle").textContent = "Alle Ausgaben " + w.in;
     renderCategorySelects();
     renderStats();
     renderCatBars();
@@ -101,9 +146,10 @@
   }
 
   function renderStats() {
-    const cur = expensesIn(viewMonth);
+    const w = WORDS[viewMode];
+    const cur = current();
     const total = sum(cur);
-    const prevTotal = sum(expensesIn(shiftMonth(viewMonth, -1)));
+    const prevTotal = sum(expensesIn(viewMode, shiftPeriod(viewMode, viewKey, -1)));
     $("statTotal").textContent = eur.format(total);
 
     const delta = $("statDelta");
@@ -111,10 +157,11 @@
       const pct = ((total - prevTotal) / prevTotal) * 100;
       const up = pct > 0;
       delta.className = "stat-sub " + (Math.abs(pct) < 0.5 ? "" : up ? "delta-up" : "delta-down");
-      delta.textContent = `${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)} % ggü. Vormonat (${eur.format(prevTotal)})`;
+      delta.textContent = `${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)} % ggü. ${w.prev} (${eur.format(prevTotal)})`;
     } else {
       delta.className = "stat-sub";
-      delta.textContent = "Kein Vergleich zum Vormonat";
+      delta.textContent = "Kein Vergleich zur " + w.prev;
+      if (viewMode === "month") delta.textContent = "Kein Vergleich zum Vormonat";
     }
 
     // Aufteilung Karte / Bar (alte Einträge ohne Angabe werden nicht mitgezählt)
@@ -122,15 +169,13 @@
     const bar = sum(cur.filter((e) => e.method === "bar"));
     $("statMethod").textContent = karte || bar ? `💳 ${eur.format(karte)} · 💶 ${eur.format(bar)}` : "";
 
-    // Durchschnitt pro Tag: laufender Monat bis heute, sonst ganzer Monat
-    const d = keyToDate(viewMonth);
-    const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    const now = new Date();
-    const isCurrent = viewMonth === monthKey(now);
-    const isFuture = d > now;
-    const days = isFuture ? daysInMonth : isCurrent ? now.getDate() : daysInMonth;
+    // Durchschnitt pro Tag: laufender Zeitraum bis heute, sonst ganzer Zeitraum
+    const range = periodRange(viewMode, viewKey);
+    const today = todayISO();
+    const isCurrent = today >= range.startISO && today < range.endISO;
+    const days = isCurrent ? Math.round((parseISO(today) - range.start) / 864e5) + 1 : range.days;
     $("statAvg").textContent = eur.format(days ? total / days : 0);
-    $("statCount").textContent = `${cur.length} ${cur.length === 1 ? "Eintrag" : "Einträge"}` + (isCurrent ? ` · ${days} von ${daysInMonth} Tagen` : "");
+    $("statCount").textContent = `${cur.length} ${cur.length === 1 ? "Eintrag" : "Einträge"}` + (isCurrent ? ` · ${days} von ${range.days} Tagen` : "");
 
     // Top-Kategorie
     const byCat = totalsByCat(cur);
@@ -145,16 +190,20 @@
 
     // Budget
     const meter = $("budgetMeter"), fill = $("budgetFill");
+    // In der Wochenansicht: Wochenanteil des Monatsbudgets (Monatsbudget × 12 ÷ 52)
+    const budget = viewMode === "week" ? Math.round(state.budget * 12 / 52 * 100) / 100 : state.budget;
+    $("budgetLabel").textContent = viewMode === "week" ? "Wochenbudget" : "Monatsbudget";
     if (state.budget > 0) {
-      const left = state.budget - total;
-      const ratio = total / state.budget;
+      const left = budget - total;
+      const ratio = total / budget;
       $("statBudget").textContent = eur.format(left);
       meter.hidden = false;
       fill.style.width = Math.min(100, ratio * 100) + "%";
       fill.classList.toggle("over", ratio > 1);
-      $("statBudgetSub").textContent = left >= 0
-        ? `übrig von ${eur.format(state.budget)} (${(ratio * 100).toFixed(0)} % verbraucht)`
-        : `⚠ ${eur.format(-left)} über dem Budget von ${eur.format(state.budget)}`;
+      $("statBudgetSub").textContent = (left >= 0
+        ? `übrig von ${eur.format(budget)} (${(ratio * 100).toFixed(0)} % verbraucht)`
+        : `⚠ ${eur.format(-left)} über dem Budget von ${eur.format(budget)}`)
+        + (viewMode === "week" ? ` · Anteil von ${eur.format(state.budget)} im Monat` : "");
     } else {
       $("statBudget").textContent = "–";
       meter.hidden = true;
@@ -171,11 +220,11 @@
   }
 
   function renderCatBars() {
-    const cur = expensesIn(viewMonth);
+    const cur = current();
     const total = sum(cur);
     const rows = totalsByCat(cur);
     const box = $("catBars");
-    if (!rows.length) { box.innerHTML = `<div class="empty">Für diesen Monat gibt es noch keine Ausgaben.</div>`; return; }
+    if (!rows.length) { box.innerHTML = `<div class="empty">Für ${WORDS[viewMode].this} gibt es noch keine Ausgaben.</div>`; return; }
     const max = rows[0].total;
     box.innerHTML = rows.map((r) => {
       const name = r.cat ? r.cat.name : "Ohne Kategorie";
@@ -189,9 +238,10 @@
   }
 
   function renderTrend() {
-    const months = [];
-    for (let i = 5; i >= 0; i--) months.push(shiftMonth(viewMonth, -i));
-    const totals = months.map((k) => sum(expensesIn(k)));
+    const n = WORDS[viewMode].count;
+    const months = []; // Zeiträume (Monate oder Wochen)
+    for (let i = n - 1; i >= 0; i--) months.push(shiftPeriod(viewMode, viewKey, -i));
+    const totals = months.map((k) => sum(expensesIn(viewMode, k)));
     // Breite an den Platz anpassen, damit die Schrift auf dem Handy nicht schrumpft
     const W = Math.max(280, Math.min(640, $("trendChart").clientWidth || 520)), H = 220, padL = 44, padR = 8, padT = 18, padB = 26;
     const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -200,7 +250,7 @@
     const barW = Math.min(44, step * 0.56);
     const y = (v) => padT + plotH - (v / maxV) * plotH;
 
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ausgaben der letzten sechs Monate">`;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ausgaben: ${WORDS[viewMode].trend}">`;
     for (let i = 0; i <= 4; i++) {
       const v = (maxV / 4) * i, yy = y(v);
       if (i > 0) svg += `<line class="gridline" x1="${padL}" x2="${W - padR}" y1="${yy}" y2="${yy}"/>`;
@@ -215,11 +265,13 @@
       const path = h > 0
         ? `M${x0},${padT + plotH} V${top + r} Q${x0},${top} ${x0 + r},${top} H${x0 + barW - r} Q${x0 + barW},${top} ${x0 + barW},${top + r} V${padT + plotH} Z`
         : "";
-      const label = monthFmt.format(keyToDate(k));
-      svg += `<rect class="hit" data-k="${k}" data-v="${v}" data-label="${label}" x="${padL + step * i}" y="${padT}" width="${step}" height="${plotH}"/>`;
-      if (path) svg += `<path class="bar${k === viewMonth ? "" : " dim"}" d="${path}" pointer-events="none"/>`;
-      if (k === viewMonth && v > 0) svg += `<text class="val-text" x="${cx}" y="${top - 6}" text-anchor="middle">${eurShort.format(v)}</text>`;
-      svg += `<text class="axis-text" x="${cx}" y="${H - 8}" text-anchor="middle">${monthShort.format(keyToDate(k))}</text>`;
+      const label = periodLabel(viewMode, k);
+      svg += `<rect class="hit" data-k="${k}" data-v="${v}" data-label="${esc(label)}" x="${padL + step * i}" y="${padT}" width="${step}" height="${plotH}"/>`;
+      if (path) svg += `<path class="bar${k === viewKey ? "" : " dim"}" d="${path}" pointer-events="none"/>`;
+      if (k === viewKey && v > 0) svg += `<text class="val-text" x="${cx}" y="${top - 6}" text-anchor="middle">${eurShort.format(v)}</text>`;
+      // Wochen: nur die Nummer, "KW" steht einmal vorne – sonst wird es auf dem Handy zu eng
+      const axis = viewMode === "week" ? (i === 0 ? "KW " : "") + isoWeek(parseISO(k)) : periodShort(viewMode, k);
+      svg += `<text class="axis-text" x="${cx}" y="${H - 8}" text-anchor="middle">${axis}</text>`;
     });
     svg += `<line class="baseline" x1="${padL}" x2="${W - padR}" y1="${padT + plotH}" y2="${padT + plotH}"/></svg>`;
     $("trendChart").innerHTML = svg;
@@ -231,7 +283,7 @@
   }
 
   function renderList() {
-    let list = expensesIn(viewMonth);
+    let list = current();
     if (catFilter) list = list.filter((e) => e.categoryId === catFilter);
     if (methodFilter) list = list.filter((e) => e.method === methodFilter);
     if (searchTerm) {
@@ -271,7 +323,8 @@
   function resetForm() {
     editingId = null;
     $("expenseForm").reset();
-    $("fDate").value = viewMonth === monthKey(new Date()) ? todayISO() : viewMonth + "-01";
+    const r = periodRange(viewMode, viewKey), today = todayISO();
+    $("fDate").value = today >= r.startISO && today < r.endISO ? today : r.startISO;
     setMethod(state.lastMethod || "karte"); // zuletzt genutzte Zahlart vorauswählen
     $("formTitle").textContent = "Neue Ausgabe";
     $("submitBtn").textContent = "Hinzufügen";
@@ -298,7 +351,7 @@
     }
     state.lastMethod = method;
     save();
-    viewMonth = date.slice(0, 7);
+    viewKey = periodKeyFor(viewMode, parseISO(date));
     const keepCat = categoryId;
     resetForm();
     $("fCategory").value = keepCat;
@@ -336,8 +389,20 @@
   });
 
   // ---------- Navigation & Filter ----------
-  $("prevMonth").addEventListener("click", () => { viewMonth = shiftMonth(viewMonth, -1); if (!editingId) resetForm(); render(); });
-  $("nextMonth").addEventListener("click", () => { viewMonth = shiftMonth(viewMonth, 1); if (!editingId) resetForm(); render(); });
+  $("prevMonth").addEventListener("click", () => { viewKey = shiftPeriod(viewMode, viewKey, -1); if (!editingId) resetForm(); render(); });
+  $("nextMonth").addEventListener("click", () => { viewKey = shiftPeriod(viewMode, viewKey, 1); if (!editingId) resetForm(); render(); });
+  // Umschalten Woche / Monat: bleibt beim selben Zeitpunkt (heute, falls im Zeitraum, sonst Beginn des Zeitraums)
+  $("viewToggle").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-mode]");
+    if (!b || b.dataset.mode === viewMode) return;
+    const r = periodRange(viewMode, viewKey), today = todayISO();
+    const anchor = today >= r.startISO && today < r.endISO ? new Date() : r.start;
+    viewMode = b.dataset.mode;
+    viewKey = periodKeyFor(viewMode, anchor);
+    state.viewMode = viewMode; save();
+    if (!editingId) resetForm();
+    render();
+  });
   $("search").addEventListener("input", (e) => { searchTerm = e.target.value.trim(); renderList(); });
   $("filterCat").addEventListener("change", (e) => { catFilter = e.target.value; renderCatBars(); renderList(); });
   $("filterMethod").addEventListener("change", (e) => { methodFilter = e.target.value; renderList(); });
@@ -364,7 +429,7 @@
   $("trendChart").addEventListener("mouseleave", hideTip);
   $("trendChart").addEventListener("click", (ev) => {
     const hit = ev.target.closest(".hit");
-    if (hit) { viewMonth = hit.dataset.k; if (!editingId) resetForm(); render(); }
+    if (hit) { viewKey = hit.dataset.k; if (!editingId) resetForm(); render(); }
   });
 
   // ---------- Budget ----------
@@ -436,7 +501,7 @@
       const s = JSON.parse(await file.text());
       if (!Array.isArray(s.expenses) || !Array.isArray(s.categories)) throw new Error();
       if (!confirm(`Backup mit ${s.expenses.length} Ausgaben laden? Deine aktuellen Daten werden dabei ersetzt.`)) return;
-      state = { expenses: s.expenses, categories: s.categories, budget: Number(s.budget) || 0, lastMethod: s.lastMethod || "karte" };
+      state = { expenses: s.expenses, categories: s.categories, budget: Number(s.budget) || 0, lastMethod: s.lastMethod || "karte", viewMode };
       save(); resetForm(); render();
     } catch (e) { alert("Die Datei ist kein gültiges Backup."); }
   });

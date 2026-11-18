@@ -19,10 +19,16 @@
 <body>
   <header class="topbar">
     <h1>Ausgaben-Tracker</h1>
-    <div class="month-nav">
-      <button class="icon-btn" id="prevMonth" aria-label="Vorheriger Monat">‹</button>
-      <span id="monthLabel" class="month-label"></span>
-      <button class="icon-btn" id="nextMonth" aria-label="Nächster Monat">›</button>
+    <div class="period-nav">
+      <div class="seg view-toggle" id="viewToggle" role="group" aria-label="Ansicht">
+        <button type="button" class="seg-btn" data-mode="week" aria-pressed="false">Woche</button>
+        <button type="button" class="seg-btn" data-mode="month" aria-pressed="true">Monat</button>
+      </div>
+      <div class="month-nav">
+        <button class="icon-btn" id="prevMonth" aria-label="Vorheriger Monat">‹</button>
+        <span id="monthLabel" class="month-label"></span>
+        <button class="icon-btn" id="nextMonth" aria-label="Nächster Monat">›</button>
+      </div>
     </div>
   </header>
 
@@ -61,7 +67,7 @@
     <!-- Kennzahlen -->
     <section class="stats" aria-label="Überblick">
       <div class="card stat">
-        <span class="stat-label">Ausgaben im Monat</span>
+        <span class="stat-label" id="statTotalLabel">Ausgaben im Monat</span>
         <span class="stat-value" id="statTotal">–</span>
         <span class="stat-sub" id="statDelta"></span>
         <span class="stat-sub" id="statMethod"></span>
@@ -78,7 +84,7 @@
       </div>
       <div class="card stat">
         <div class="stat-head">
-          <span class="stat-label">Monatsbudget</span>
+          <span class="stat-label" id="budgetLabel">Monatsbudget</span>
           <button class="link-btn" id="editBudget">ändern</button>
         </div>
         <span class="stat-value" id="statBudget">–</span>
@@ -98,14 +104,14 @@
 
     <!-- Verlauf -->
     <section class="card" id="trendCard">
-      <h2>Letzte 6 Monate</h2>
+      <h2 id="trendTitle">Letzte 6 Monate</h2>
       <div id="trendChart" class="trend"></div>
     </section>
 
     <!-- Liste -->
     <section class="card" id="listCard">
       <div class="card-head">
-        <h2>Alle Ausgaben im Monat</h2>
+        <h2 id="listTitle">Alle Ausgaben im Monat</h2>
         <div class="list-tools">
           <input id="search" type="search" placeholder="Suchen…" aria-label="Ausgaben durchsuchen">
           <select id="filterCat" aria-label="Nach Kategorie filtern"></select>
