@@ -40,6 +40,13 @@
         <label>Kategorie
           <select id="fCategory"></select>
         </label>
+        <fieldset class="seg-field">
+          <legend>Bezahlt mit</legend>
+          <div class="seg" role="radiogroup">
+            <label class="seg-opt"><input type="radio" name="fMethod" value="karte" checked><span>💳 Karte</span></label>
+            <label class="seg-opt"><input type="radio" name="fMethod" value="bar"><span>💶 Bar</span></label>
+          </div>
+        </fieldset>
         <label>Datum
           <input id="fDate" type="date" required>
         </label>
@@ -57,6 +64,7 @@
         <span class="stat-label">Ausgaben im Monat</span>
         <span class="stat-value" id="statTotal">–</span>
         <span class="stat-sub" id="statDelta"></span>
+        <span class="stat-sub" id="statMethod"></span>
       </div>
       <div class="card stat">
         <span class="stat-label">Ø pro Tag</span>
@@ -101,6 +109,11 @@
         <div class="list-tools">
           <input id="search" type="search" placeholder="Suchen…" aria-label="Ausgaben durchsuchen">
           <select id="filterCat" aria-label="Nach Kategorie filtern"></select>
+          <select id="filterMethod" aria-label="Nach Zahlart filtern">
+            <option value="">Karte &amp; Bar</option>
+            <option value="karte">Nur Karte</option>
+            <option value="bar">Nur Bar</option>
+          </select>
         </div>
       </div>
       <div id="list"></div>

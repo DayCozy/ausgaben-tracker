@@ -20,7 +20,11 @@
   let viewMonth = monthKey(new Date()); // "YYYY-MM"
   let editingId = null;
   let catFilter = "";
+  let methodFilter = "";
   let searchTerm = "";
+  const METHOD_LABEL = { karte: "💳 Karte", bar: "💶 Bar" };
+  function getMethod() { return (document.querySelector('input[name="fMethod"]:checked') || {}).value || "karte"; }
+  function setMethod(m) { const r = document.querySelector(`input[name="fMethod"][value="${m}"]`); if (r) r.checked = true; }
 
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
@@ -112,6 +116,11 @@
       delta.className = "stat-sub";
       delta.textContent = "Kein Vergleich zum Vormonat";
     }
+
+    // Aufteilung Karte / Bar (alte Einträge ohne Angabe werden nicht mitgezählt)
+    const karte = sum(cur.filter((e) => e.method === "karte"));
+    const bar = sum(cur.filter((e) => e.method === "bar"));
+    $("statMethod").textContent = karte || bar ? `💳 ${eur.format(karte)} · 💶 ${eur.format(bar)}` : "";
 
     // Durchschnitt pro Tag: laufender Monat bis heute, sonst ganzer Monat
     const d = keyToDate(viewMonth);
@@ -224,6 +233,7 @@
   function renderList() {
     let list = expensesIn(viewMonth);
     if (catFilter) list = list.filter((e) => e.categoryId === catFilter);
+    if (methodFilter) list = list.filter((e) => e.method === methodFilter);
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       list = list.filter((e) => e.note.toLowerCase().includes(q) || (catById(e.categoryId)?.name || "").toLowerCase().includes(q));
@@ -231,7 +241,7 @@
     list.sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
     const box = $("list");
     if (!list.length) {
-      box.innerHTML = `<div class="empty">${catFilter || searchTerm ? "Keine passenden Ausgaben gefunden." : "Noch nichts eingetragen. Füge links deine erste Ausgabe hinzu."}</div>`;
+      box.innerHTML = `<div class="empty">${catFilter || methodFilter || searchTerm ? "Keine passenden Ausgaben gefunden." : "Noch nichts eingetragen. Füge links deine erste Ausgabe hinzu."}</div>`;
       return;
     }
     const groups = new Map();
@@ -244,7 +254,7 @@
           const c = catById(e.categoryId);
           return `<div class="item">
             <div class="item-main"><span class="dot" style="background:${catColor(c)}"></span>
-              <div class="item-text"><div class="item-note">${esc(e.note)}</div><div class="item-cat">${esc(c ? c.name : "Ohne Kategorie")}</div></div>
+              <div class="item-text"><div class="item-note">${esc(e.note)}</div><div class="item-cat">${esc(c ? c.name : "Ohne Kategorie")}${METHOD_LABEL[e.method] ? " · " + METHOD_LABEL[e.method] : ""}</div></div>
             </div>
             <span class="item-amt">${eur.format(e.amount)}</span>
             <span class="item-actions">
@@ -262,6 +272,7 @@
     editingId = null;
     $("expenseForm").reset();
     $("fDate").value = viewMonth === monthKey(new Date()) ? todayISO() : viewMonth + "-01";
+    setMethod(state.lastMethod || "karte"); // zuletzt genutzte Zahlart vorauswählen
     $("formTitle").textContent = "Neue Ausgabe";
     $("submitBtn").textContent = "Hinzufügen";
     $("cancelEdit").classList.add("hidden");
@@ -274,16 +285,18 @@
     const note = $("fNote").value.trim();
     const date = $("fDate").value;
     const categoryId = $("fCategory").value;
+    const method = getMethod();
     if (!(amount > 0)) { $("formError").textContent = "Bitte einen gültigen Betrag größer als 0 eingeben."; $("fAmount").focus(); return; }
     if (!note) { $("formError").textContent = "Bitte kurz beschreiben, wofür das Geld war."; return; }
     if (!date) { $("formError").textContent = "Bitte ein Datum wählen."; return; }
 
     if (editingId) {
       const e = state.expenses.find((x) => x.id === editingId);
-      if (e) Object.assign(e, { amount, note, date, categoryId });
+      if (e) Object.assign(e, { amount, note, date, categoryId, method });
     } else {
-      state.expenses.push({ id: uid(), amount, note, date, categoryId, created: Date.now() });
+      state.expenses.push({ id: uid(), amount, note, date, categoryId, method, created: Date.now() });
     }
+    state.lastMethod = method;
     save();
     viewMonth = date.slice(0, 7);
     const keepCat = categoryId;
@@ -306,6 +319,7 @@
       $("fNote").value = e.note;
       $("fDate").value = e.date;
       $("fCategory").value = e.categoryId;
+      setMethod(e.method || "karte");
       $("formTitle").textContent = "Ausgabe bearbeiten";
       $("submitBtn").textContent = "Speichern";
       $("cancelEdit").classList.remove("hidden");
@@ -326,6 +340,7 @@
   $("nextMonth").addEventListener("click", () => { viewMonth = shiftMonth(viewMonth, 1); if (!editingId) resetForm(); render(); });
   $("search").addEventListener("input", (e) => { searchTerm = e.target.value.trim(); renderList(); });
   $("filterCat").addEventListener("change", (e) => { catFilter = e.target.value; renderCatBars(); renderList(); });
+  $("filterMethod").addEventListener("change", (e) => { methodFilter = e.target.value; renderList(); });
 
   $("catBars").addEventListener("click", (ev) => {
     const row = ev.target.closest(".cat-row");
@@ -408,8 +423,8 @@
   $("exportCsv").addEventListener("click", () => {
     const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
     const rows = [...state.expenses].sort((a, b) => a.date.localeCompare(b.date))
-      .map((e) => [e.date, q(e.note), q(catById(e.categoryId)?.name || ""), e.amount.toFixed(2).replace(".", ",")].join(";"));
-    download("ausgaben.csv", "﻿Datum;Beschreibung;Kategorie;Betrag\n" + rows.join("\n"), "text/csv;charset=utf-8");
+      .map((e) => [e.date, q(e.note), q(catById(e.categoryId)?.name || ""), { karte: "Karte", bar: "Bar" }[e.method] || "", e.amount.toFixed(2).replace(".", ",")].join(";"));
+    download("ausgaben.csv", "﻿Datum;Beschreibung;Kategorie;Zahlart;Betrag\n" + rows.join("\n"), "text/csv;charset=utf-8");
   });
   $("exportJson").addEventListener("click", () => {
     download(`ausgaben-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), "application/json");
@@ -421,7 +436,7 @@
       const s = JSON.parse(await file.text());
       if (!Array.isArray(s.expenses) || !Array.isArray(s.categories)) throw new Error();
       if (!confirm(`Backup mit ${s.expenses.length} Ausgaben laden? Deine aktuellen Daten werden dabei ersetzt.`)) return;
-      state = { expenses: s.expenses, categories: s.categories, budget: Number(s.budget) || 0 };
+      state = { expenses: s.expenses, categories: s.categories, budget: Number(s.budget) || 0, lastMethod: s.lastMethod || "karte" };
       save(); resetForm(); render();
     } catch (e) { alert("Die Datei ist kein gültiges Backup."); }
   });
