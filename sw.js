@@ -1,9 +1,11 @@
 // Service Worker: speichert die App auf dem Gerät, damit sie auch ohne Internet startet.
 // Strategie: erst Netz versuchen (max. 3 s, damit Updates ankommen), sonst die gespeicherte Version.
-const CACHE = "ausgaben-tracker-v1";
+const CACHE = "ausgaben-tracker-v2";
 const FILES = [
   "./", "index.html", "style.css", "app.js", "manifest.json",
   "apple-touch-icon.png", "icon-192.png", "icon-512.png",
+  "icons/tab-uebersicht.svg", "icons/tab-buchungen.svg", "icons/tab-einstellungen.svg",
+  "icons/chevron-down.svg", "icons/bearbeiten.svg", "icons/loeschen.svg",
 ];
 
 self.addEventListener("install", (event) => {

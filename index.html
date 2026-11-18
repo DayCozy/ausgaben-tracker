@@ -10,165 +10,224 @@
   <meta name="apple-mobile-web-app-title" content="Ausgaben">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="format-detection" content="telephone=no">
-  <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <header class="topbar">
-    <h1>Ausgaben-Tracker</h1>
-    <div class="period-nav">
-      <div class="seg view-toggle" id="viewToggle" role="group" aria-label="Ansicht">
+<body data-tab="overview">
+
+  <!-- ============ Tab: Übersicht ============ -->
+  <main class="page" id="page-overview" aria-labelledby="t-overview">
+    <header class="page-head">
+      <h1 id="t-overview">Übersicht</h1>
+      <div class="seg view-toggle" role="group" aria-label="Ansicht">
         <button type="button" class="seg-btn" data-mode="week" aria-pressed="false">Woche</button>
         <button type="button" class="seg-btn" data-mode="month" aria-pressed="true">Monat</button>
       </div>
-      <div class="month-nav">
-        <button class="icon-btn" id="prevMonth" aria-label="Vorheriger Monat">‹</button>
-        <span id="monthLabel" class="month-label"></span>
-        <button class="icon-btn" id="nextMonth" aria-label="Nächster Monat">›</button>
+      <div class="period-nav">
+        <button class="nav-btn" data-shift="-1" aria-label="Zurück">‹</button>
+        <span class="period-label" data-period-label></span>
+        <button class="nav-btn" data-shift="1" aria-label="Weiter">›</button>
+      </div>
+    </header>
+
+    <div class="card banner" id="backupBanner" role="status" hidden>
+      <p class="banner-text" id="backupText"></p>
+      <div class="banner-actions">
+        <button type="button" class="btn primary small" id="backupNow">Jetzt sichern</button>
+        <button type="button" class="btn secondary small" id="backupLater">Später</button>
       </div>
     </div>
-  </header>
 
-  <div class="banner-wrap">
-    <div class="banner" id="backupBanner" role="status" hidden>
-      <span class="banner-text" id="backupText"></span>
-      <span class="banner-actions">
-        <button type="button" class="btn primary" id="backupNow">Jetzt sichern</button>
-        <button type="button" class="btn ghost" id="backupLater">Später</button>
-      </span>
-    </div>
-  </div>
-
-  <main class="layout">
-    <!-- Neue Ausgabe -->
-    <section class="card" id="formCard">
-      <h2 id="formTitle">Neue Ausgabe</h2>
-      <form id="expenseForm" autocomplete="off">
-        <label>Betrag (€)
-          <input id="fAmount" inputmode="decimal" placeholder="z. B. 4,50" required>
-        </label>
-        <label>Wofür?
-          <input id="fNote" placeholder="z. B. Mensa Mittagessen" maxlength="80" required>
-        </label>
-        <label>Kategorie
-          <select id="fCategory"></select>
-        </label>
-        <fieldset class="seg-field">
-          <legend>Bezahlt mit</legend>
-          <div class="seg" role="radiogroup">
-            <label class="seg-opt"><input type="radio" name="fMethod" value="karte" checked><span>💳 Karte</span></label>
-            <label class="seg-opt"><input type="radio" name="fMethod" value="bar"><span>💶 Bar</span></label>
-          </div>
-        </fieldset>
-        <label>Datum
-          <input id="fDate" type="date" required>
-        </label>
-        <label class="check-row" id="repeatRow">
-          <input type="checkbox" id="fRepeat">
-          <span>🔁 Jeden Monat wiederholen <small>(z. B. Miete, Handy, Abos)</small></span>
-        </label>
-        <div class="form-actions">
-          <button type="submit" class="btn primary" id="submitBtn">Hinzufügen</button>
-          <button type="button" class="btn ghost hidden" id="cancelEdit">Abbrechen</button>
-        </div>
-        <p class="form-error" id="formError" role="alert"></p>
-      </form>
+    <section class="card budget" aria-labelledby="budgetLabel">
+      <h2 class="h-sm" id="budgetLabel">Monatsbudget</h2>
+      <p class="budget-value" id="budgetValue">–</p>
+      <div class="meter" id="budgetMeter" hidden><div class="meter-fill" id="budgetFill"></div></div>
+      <p class="sub" id="budgetSub"></p>
+      <p class="budget-warn" id="budgetWarn" hidden></p>
+      <button type="button" class="link-btn" id="budgetSet" hidden>Budget festlegen</button>
     </section>
 
-    <!-- Kennzahlen -->
-    <section class="stats" aria-label="Überblick">
+    <section class="stats" aria-label="Kennzahlen">
       <div class="card stat">
         <span class="stat-label" id="statTotalLabel">Ausgaben im Monat</span>
         <span class="stat-value" id="statTotal">–</span>
-        <span class="stat-sub" id="statDelta"></span>
-        <span class="stat-sub" id="statMethod"></span>
+        <span class="stat-sub" id="statTotalSub"></span>
       </div>
       <div class="card stat">
         <span class="stat-label">Ø pro Tag</span>
         <span class="stat-value" id="statAvg">–</span>
         <span class="stat-sub" id="statCount"></span>
       </div>
-      <div class="card stat">
-        <span class="stat-label">Größte Kategorie</span>
-        <span class="stat-value small" id="statTop">–</span>
-        <span class="stat-sub" id="statTopSub"></span>
-      </div>
-      <div class="card stat">
-        <div class="stat-head">
-          <span class="stat-label" id="budgetLabel">Monatsbudget</span>
-          <button class="link-btn" id="editBudget">ändern</button>
-        </div>
-        <span class="stat-value" id="statBudget">–</span>
-        <div class="meter" id="budgetMeter" hidden><div class="meter-fill" id="budgetFill"></div></div>
-        <span class="stat-sub" id="statBudgetSub"></span>
-      </div>
     </section>
 
-    <!-- Kategorien -->
-    <section class="card" id="catCard">
+    <section class="card" aria-labelledby="catTitle">
       <div class="card-head">
-        <h2>Nach Kategorie</h2>
-        <button class="link-btn" id="manageCats">Kategorien bearbeiten</button>
+        <h2 class="h-sm" id="catTitle">Nach Kategorie</h2>
+        <button type="button" class="link-btn" data-open-cats>Kategorien bearbeiten</button>
       </div>
-      <div id="catBars" class="cat-bars"></div>
+      <div id="catRows" class="cat-rows"></div>
     </section>
 
-    <!-- Verlauf -->
-    <section class="card" id="trendCard">
-      <h2 id="trendTitle">Letzte 6 Monate</h2>
+    <section class="card" aria-labelledby="trendTitle">
+      <h2 class="h-md" id="trendTitle">Letzte 6 Monate</h2>
+      <p class="sub" id="trendSub"></p>
       <div id="trendChart" class="trend"></div>
-    </section>
-
-    <!-- Liste -->
-    <section class="card" id="listCard">
-      <div class="card-head">
-        <h2 id="listTitle">Alle Ausgaben im Monat</h2>
-        <div class="list-tools">
-          <input id="search" type="search" placeholder="Suchen…" aria-label="Ausgaben durchsuchen">
-          <select id="filterCat" aria-label="Nach Kategorie filtern"></select>
-          <select id="filterMethod" aria-label="Nach Zahlart filtern">
-            <option value="">Karte &amp; Bar</option>
-            <option value="karte">Nur Karte</option>
-            <option value="bar">Nur Bar</option>
-          </select>
-        </div>
-      </div>
-      <div id="list"></div>
-    </section>
-
-    <!-- Wiederkehrende Ausgaben -->
-    <section class="card" id="recCard">
-      <h2>🔁 Wiederkehrende Ausgaben</h2>
-      <p class="muted">Werden jeden Monat am gleichen Tag automatisch eingetragen. Einrichten: beim Eintragen „Jeden Monat wiederholen“ anhaken.</p>
-      <div id="recList"></div>
-    </section>
-
-    <!-- Daten -->
-    <section class="card data-card">
-      <h2>Daten</h2>
-      <p class="muted">Deine Daten bleiben nur in diesem Browser gespeichert. Mach ab und zu ein Backup.</p>
-      <div class="data-actions">
-        <button class="btn" id="exportCsv">Als CSV exportieren</button>
-        <button class="btn" id="exportJson">Backup speichern</button>
-        <label class="btn">Backup laden<input type="file" id="importJson" accept="application/json" hidden></label>
-      </div>
     </section>
   </main>
 
-  <!-- Kategorien-Dialog -->
+  <!-- ============ Tab: Buchungen ============ -->
+  <main class="page" id="page-list" aria-labelledby="t-list" hidden>
+    <header class="page-head">
+      <h1 id="t-list">Buchungen</h1>
+      <div class="seg view-toggle" role="group" aria-label="Ansicht">
+        <button type="button" class="seg-btn" data-mode="week" aria-pressed="false">Woche</button>
+        <button type="button" class="seg-btn" data-mode="month" aria-pressed="true">Monat</button>
+      </div>
+      <div class="period-nav">
+        <button class="nav-btn" data-shift="-1" aria-label="Zurück">‹</button>
+        <span class="period-label" data-period-label></span>
+        <button class="nav-btn" data-shift="1" aria-label="Weiter">›</button>
+      </div>
+    </header>
+
+    <section class="card list-card" aria-labelledby="listTitle">
+      <h2 class="h-sm" id="listTitle">Alle Ausgaben im Monat</h2>
+      <input class="field" id="search" type="search" placeholder="Suchen…" aria-label="Ausgaben durchsuchen" autocomplete="off">
+      <div class="filters">
+        <select class="field select" id="filterCat" aria-label="Nach Kategorie filtern"></select>
+        <select class="field select" id="filterMethod" aria-label="Nach Zahlart filtern">
+          <option value="">Karte &amp; Bar</option>
+          <option value="karte">Nur Karte</option>
+          <option value="bar">Nur Bar</option>
+        </select>
+      </div>
+      <div id="list"></div>
+    </section>
+  </main>
+
+  <!-- ============ Tab: Einstellungen ============ -->
+  <main class="page" id="page-settings" aria-labelledby="t-settings" hidden>
+    <header class="page-head">
+      <h1 id="t-settings">Einstellungen</h1>
+      <p class="page-sub">Ausgaben-Tracker</p>
+    </header>
+
+    <section class="card" aria-labelledby="quickTitle">
+      <h2 class="h-md" id="quickTitle">Schnelle Erfassung</h2>
+      <div class="set-row"><span>Standarddatum</span><span class="set-val">Heute</span></div>
+      <div class="set-row"><span>Letzte Zahlungsart</span><span class="set-val" id="setMethod">Karte</span></div>
+      <button type="button" class="set-row" id="editBudget"><span>Monatsbudget</span><span class="set-val" id="setBudget">–</span></button>
+      <p class="note">Wird beim Eintragen automatisch vorausgewählt. Tippe auf das Budget, um es zu ändern.</p>
+    </section>
+
+    <section class="card" aria-labelledby="dataTitle">
+      <h2 class="h-md" id="dataTitle">Daten</h2>
+      <p class="text-sec">Deine Daten bleiben nur in diesem Browser gespeichert. Mach ab und zu ein Backup.</p>
+      <div class="stack">
+        <button class="btn secondary" id="exportCsv">Als CSV exportieren</button>
+        <button class="btn secondary" id="exportJson">Backup speichern</button>
+        <label class="btn secondary">Backup laden<input type="file" id="importJson" accept="application/json" hidden></label>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="recTitle">
+      <h2 class="h-md" id="recTitle">Wiederkehrende Ausgaben</h2>
+      <p class="text-sec">Werden jeden Monat am gleichen Tag automatisch eingetragen. Einrichten: beim Eintragen „Jeden Monat wiederholen“ einschalten.</p>
+      <div id="recList"></div>
+    </section>
+
+    <section class="card" aria-labelledby="catSetTitle">
+      <h2 class="h-md" id="catSetTitle">Kategorien</h2>
+      <p class="text-sec">Bis zu 8 Kategorien mit eigener Farbe.</p>
+      <button type="button" class="btn secondary" data-open-cats>Kategorien bearbeiten</button>
+    </section>
+
+  </main>
+
+  <!-- ============ Fester Button + Tab-Leiste ============ -->
+  <button type="button" class="btn primary fab" id="openSheet">+ Neue Ausgabe</button>
+
+  <nav class="tabbar" aria-label="Bereiche">
+    <button type="button" class="tab" data-tab="overview"><span class="tab-icon" style="--icon:url(icons/tab-uebersicht.svg)"></span>Übersicht</button>
+    <button type="button" class="tab" data-tab="list"><span class="tab-icon" style="--icon:url(icons/tab-buchungen.svg)"></span>Buchungen</button>
+    <button type="button" class="tab" data-tab="settings"><span class="tab-icon" style="--icon:url(icons/tab-einstellungen.svg)"></span>Einstellungen</button>
+  </nav>
+
+  <!-- ============ Eingabe-Sheet ============ -->
+  <div class="sheet-backdrop" id="sheet" hidden>
+    <form class="sheet" id="expenseForm" role="dialog" aria-modal="true" aria-labelledby="formTitle" autocomplete="off" novalidate>
+      <div class="grabber" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <h2 class="h-md" id="formTitle">Neue Ausgabe</h2>
+        <button type="button" class="close-btn" id="closeSheet" aria-label="Schließen">×</button>
+      </div>
+
+      <div class="sheet-body">
+        <div class="f-group">
+          <span class="f-label" id="amountLabel">Betrag (€)</span>
+          <button type="button" class="field amount" id="fAmount" aria-labelledby="amountLabel" aria-live="polite">0,00</button>
+        </div>
+
+        <button type="button" class="f-label as-btn" id="noteHint">Wofür?</button>
+        <input class="field" id="fNote" maxlength="80" placeholder="Wocheneinkauf" aria-label="Wofür?" enterkeyhint="done">
+
+        <div class="f-group">
+          <span class="f-label select-wrap">
+            <span id="catHint">Kategorie: – · Tippen zum Ändern</span>
+            <select id="fCategory" class="overlay-input" aria-label="Kategorie wählen"></select>
+          </span>
+          <div class="chips" id="catChips"></div>
+        </div>
+
+        <div class="f-group tight">
+          <span class="f-label" id="methodHint">Bezahlt mit</span>
+          <div class="seg pay" role="radiogroup" aria-labelledby="methodHint">
+            <button type="button" class="seg-btn" role="radio" data-method="karte" aria-checked="true">💳 Karte</button>
+            <button type="button" class="seg-btn" role="radio" data-method="bar" aria-checked="false">💶 Bar</button>
+          </div>
+        </div>
+
+        <label class="date-row">
+          <span class="f-label">Datum</span>
+          <span class="date-val" id="dateText"></span>
+          <input type="date" id="fDate" class="overlay-input" aria-label="Datum" required>
+        </label>
+
+        <label class="toggle-row" id="repeatRow">
+          <span>🔁 Jeden Monat wiederholen</span>
+          <input type="checkbox" id="fRepeat" class="switch">
+        </label>
+
+        <p class="form-error" id="formError" role="alert"></p>
+      </div>
+
+      <div class="sheet-foot">
+        <button type="submit" class="btn primary" id="submitBtn" disabled>Hinzufügen</button>
+      </div>
+
+      <div class="keypad" id="keypad" aria-label="Zahlentastatur">
+        <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
+        <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
+        <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
+        <button type="button" data-key="," class="plain" aria-label="Komma">,</button><button type="button" data-key="0">0</button><button type="button" data-key="back" class="plain" aria-label="Löschen">⌫</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============ Kategorien-Dialog ============ -->
   <dialog id="catDialog">
     <form method="dialog" class="dialog-body">
-      <h2>Kategorien</h2>
-      <p class="muted">Bis zu 8 Kategorien. Löschen geht nur, wenn keine Ausgaben drin sind.</p>
+      <h2 class="h-md">Kategorien</h2>
+      <p class="text-sec">Bis zu 8 Kategorien. Löschen geht nur, wenn keine Ausgaben drin sind.</p>
       <div id="catEditList"></div>
       <div class="add-cat">
-        <input id="newCatName" placeholder="Neue Kategorie" maxlength="24">
-        <button type="button" class="btn" id="addCat">Hinzufügen</button>
+        <input class="field" id="newCatName" placeholder="Neue Kategorie" maxlength="24">
+        <button type="button" class="btn secondary" id="addCat">Hinzufügen</button>
       </div>
-      <div class="form-actions"><button class="btn primary" value="close">Fertig</button></div>
+      <button class="btn primary" value="close">Fertig</button>
     </form>
   </dialog>
 
