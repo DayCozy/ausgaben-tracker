@@ -34,13 +34,18 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (Array.isArray(s.expenses) && Array.isArray(s.categories)) return s;
+        if (Array.isArray(s.expenses) && Array.isArray(s.categories)) {
+          if (!Array.isArray(s.recurring)) s.recurring = [];
+          return s;
+        }
       }
     } catch (e) { /* leer starten */ }
     return {
       expenses: [],
       categories: DEFAULT_CATS.map((name, i) => ({ id: uid() + i, name, slot: i + 1 })),
       budget: 0,
+      recurring: [],   // wiederkehrende Ausgaben (Regeln)
+      lastBackup: 0,   // Zeitpunkt des letzten Backups
     };
   }
   function save() {
@@ -132,7 +137,71 @@
     renderCatBars();
     renderTrend();
     renderList();
+    renderRecurring();
+    renderBackupBanner();
   }
+
+  // ---------- Wiederkehrende Ausgaben ----------
+  // Regel: { id, amount, note, categoryId, method, day (1–31), lastMonth "YYYY-MM" (zuletzt eingetragen) }
+  function nextMonthKey(k) { const d = keyToDate(k); return monthKey(new Date(d.getFullYear(), d.getMonth() + 1, 1)); }
+  function dateForMonth(k, day) { const d = keyToDate(k); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); return k + "-" + String(Math.min(day, last)).padStart(2, "0"); }
+  // Trägt alle fälligen Ausgaben ein (auch nachträglich, falls die App länger nicht offen war). Gibt die Anzahl zurück.
+  function runRecurring() {
+    const today = todayISO(), thisMonth = today.slice(0, 7);
+    let added = 0;
+    for (const r of state.recurring) {
+      let m = nextMonthKey(r.lastMonth);
+      while (m <= thisMonth) {
+        const date = dateForMonth(m, r.day);
+        if (date > today) break; // noch nicht fällig
+        state.expenses.push({ id: uid(), amount: r.amount, note: r.note, date, categoryId: r.categoryId, method: r.method, recurringId: r.id, created: Date.now() + added });
+        r.lastMonth = m; added++;
+        m = nextMonthKey(m);
+      }
+    }
+    if (added) save();
+    return added;
+  }
+  function renderRecurring() {
+    const box = $("recList");
+    if (!state.recurring.length) { box.innerHTML = `<div class="empty">Noch keine wiederkehrenden Ausgaben.</div>`; return; }
+    box.innerHTML = [...state.recurring].sort((a, b) => a.day - b.day).map((r) => {
+      const c = catById(r.categoryId);
+      return `<div class="rec-item">
+        <div class="item-main"><span class="dot" style="background:${catColor(c)}"></span>
+          <div class="item-text"><div class="item-note">${esc(r.note)}</div>
+          <div class="item-cat">Jeden Monat am ${r.day}. · ${esc(c ? c.name : "Ohne Kategorie")}${METHOD_LABEL[r.method] ? " · " + METHOD_LABEL[r.method] : ""}</div></div>
+        </div>
+        <span class="item-amt">${eur.format(r.amount)}</span>
+        <button data-stop="${r.id}" aria-label="Wiederholung beenden" title="Wiederholung beenden">✕</button>
+      </div>`;
+    }).join("");
+  }
+  $("recList").addEventListener("click", (ev) => {
+    const id = ev.target.closest("[data-stop]")?.dataset.stop; if (!id) return;
+    const r = state.recurring.find((x) => x.id === id); if (!r) return;
+    if (!confirm(`„${r.note}“ nicht mehr jeden Monat eintragen?\n\nBereits eingetragene Ausgaben bleiben erhalten.`)) return;
+    state.recurring = state.recurring.filter((x) => x.id !== id);
+    save(); render();
+  });
+
+  // ---------- Backup-Erinnerung ----------
+  const BACKUP_DAYS = 7;
+  function renderBackupBanner() {
+    const banner = $("backupBanner");
+    const now = Date.now(), day = 864e5;
+    const due = state.expenses.length > 0
+      && (!state.lastBackup || now - state.lastBackup > BACKUP_DAYS * day)
+      && !(state.backupSnooze && now < state.backupSnooze);
+    banner.hidden = !due;
+    if (!due) return;
+    const days = state.lastBackup ? Math.floor((now - state.lastBackup) / day) : null;
+    $("backupText").textContent = days === null
+      ? "💾 Du hast noch nie ein Backup gemacht. Sichere deine Ausgaben, damit nichts verloren geht."
+      : `💾 Dein letztes Backup ist ${days} Tage her. Zeit für ein neues!`;
+  }
+  $("backupLater").addEventListener("click", () => { state.backupSnooze = Date.now() + 864e5; save(); renderBackupBanner(); }); // morgen wieder fragen
+  $("backupNow").addEventListener("click", () => $("exportJson").click());
 
   function renderCategorySelects() {
     const opts = state.categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
@@ -306,7 +375,7 @@
           const c = catById(e.categoryId);
           return `<div class="item">
             <div class="item-main"><span class="dot" style="background:${catColor(c)}"></span>
-              <div class="item-text"><div class="item-note">${esc(e.note)}</div><div class="item-cat">${esc(c ? c.name : "Ohne Kategorie")}${METHOD_LABEL[e.method] ? " · " + METHOD_LABEL[e.method] : ""}</div></div>
+              <div class="item-text"><div class="item-note">${e.recurringId ? "🔁 " : ""}${esc(e.note)}</div><div class="item-cat">${esc(c ? c.name : "Ohne Kategorie")}${METHOD_LABEL[e.method] ? " · " + METHOD_LABEL[e.method] : ""}</div></div>
             </div>
             <span class="item-amt">${eur.format(e.amount)}</span>
             <span class="item-actions">
@@ -326,6 +395,8 @@
     const r = periodRange(viewMode, viewKey), today = todayISO();
     $("fDate").value = today >= r.startISO && today < r.endISO ? today : r.startISO;
     setMethod(state.lastMethod || "karte"); // zuletzt genutzte Zahlart vorauswählen
+    $("fRepeat").checked = false;
+    $("repeatRow").classList.remove("hidden");
     $("formTitle").textContent = "Neue Ausgabe";
     $("submitBtn").textContent = "Hinzufügen";
     $("cancelEdit").classList.add("hidden");
@@ -347,7 +418,15 @@
       const e = state.expenses.find((x) => x.id === editingId);
       if (e) Object.assign(e, { amount, note, date, categoryId, method });
     } else {
-      state.expenses.push({ id: uid(), amount, note, date, categoryId, method, created: Date.now() });
+      const exp = { id: uid(), amount, note, date, categoryId, method, created: Date.now() };
+      if ($("fRepeat").checked) {
+        // Diese Ausgabe ist der erste Eintrag; ab dem nächsten Monat trägt die App sie selbst ein
+        const rule = { id: uid(), amount, note, categoryId, method, day: Number(date.slice(8, 10)), lastMonth: date.slice(0, 7) };
+        state.recurring.push(rule);
+        exp.recurringId = rule.id;
+      }
+      state.expenses.push(exp);
+      if (exp.recurringId) runRecurring(); // liegt das Datum in der Vergangenheit: fehlende Monate nachtragen
     }
     state.lastMethod = method;
     save();
@@ -373,6 +452,8 @@
       $("fDate").value = e.date;
       $("fCategory").value = e.categoryId;
       setMethod(e.method || "karte");
+      $("fRepeat").checked = false;
+      $("repeatRow").classList.add("hidden"); // Wiederholung nur beim Neuanlegen
       $("formTitle").textContent = "Ausgabe bearbeiten";
       $("submitBtn").textContent = "Speichern";
       $("cancelEdit").classList.remove("hidden");
@@ -444,7 +525,7 @@
   // ---------- Kategorien verwalten ----------
   const dlg = $("catDialog");
   function renderCatEditor() {
-    const used = new Set(state.expenses.map((e) => e.categoryId));
+    const used = new Set([...state.expenses, ...state.recurring].map((e) => e.categoryId));
     $("catEditList").innerHTML = state.categories.map((c) => `
       <div class="cat-edit">
         <span class="dot" style="background:${catColor(c)}"></span>
@@ -492,7 +573,10 @@
     download("ausgaben.csv", "﻿Datum;Beschreibung;Kategorie;Zahlart;Betrag\n" + rows.join("\n"), "text/csv;charset=utf-8");
   });
   $("exportJson").addEventListener("click", () => {
+    state.lastBackup = Date.now(); delete state.backupSnooze;
+    save();
     download(`ausgaben-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), "application/json");
+    renderBackupBanner();
   });
   $("importJson").addEventListener("change", async (ev) => {
     const file = ev.target.files[0]; ev.target.value = "";
@@ -501,7 +585,11 @@
       const s = JSON.parse(await file.text());
       if (!Array.isArray(s.expenses) || !Array.isArray(s.categories)) throw new Error();
       if (!confirm(`Backup mit ${s.expenses.length} Ausgaben laden? Deine aktuellen Daten werden dabei ersetzt.`)) return;
-      state = { expenses: s.expenses, categories: s.categories, budget: Number(s.budget) || 0, lastMethod: s.lastMethod || "karte", viewMode };
+      state = {
+        expenses: s.expenses, categories: s.categories, budget: Number(s.budget) || 0, lastMethod: s.lastMethod || "karte", viewMode,
+        recurring: Array.isArray(s.recurring) ? s.recurring : [], lastBackup: Date.now(), // geladenes Backup zählt als aktuell
+      };
+      runRecurring();
       save(); resetForm(); render();
     } catch (e) { alert("Die Datei ist kein gültiges Backup."); }
   });
@@ -509,6 +597,16 @@
   // ---------- Start ----------
   // Browser bitten, die Daten dauerhaft zu behalten (hilft v. a. auf dem iPhone)
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) { /* egal */ }
+  // Offline-Unterstützung: App auf dem Gerät speichern
+  if ("serviceWorker" in navigator) {
+    addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => { /* ohne Offline-Modus weiter */ }); });
+  }
+  runRecurring();
   resetForm();
   render();
+  // Wenn die App aus dem Hintergrund zurückkommt (z. B. am nächsten Tag): fällige Ausgaben eintragen
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (runRecurring()) render(); else renderBackupBanner();
+  });
 })();

@@ -32,6 +32,16 @@
     </div>
   </header>
 
+  <div class="banner-wrap">
+    <div class="banner" id="backupBanner" role="status" hidden>
+      <span class="banner-text" id="backupText"></span>
+      <span class="banner-actions">
+        <button type="button" class="btn primary" id="backupNow">Jetzt sichern</button>
+        <button type="button" class="btn ghost" id="backupLater">Später</button>
+      </span>
+    </div>
+  </div>
+
   <main class="layout">
     <!-- Neue Ausgabe -->
     <section class="card" id="formCard">
@@ -55,6 +65,10 @@
         </fieldset>
         <label>Datum
           <input id="fDate" type="date" required>
+        </label>
+        <label class="check-row" id="repeatRow">
+          <input type="checkbox" id="fRepeat">
+          <span>🔁 Jeden Monat wiederholen <small>(z. B. Miete, Handy, Abos)</small></span>
         </label>
         <div class="form-actions">
           <button type="submit" class="btn primary" id="submitBtn">Hinzufügen</button>
@@ -123,6 +137,13 @@
         </div>
       </div>
       <div id="list"></div>
+    </section>
+
+    <!-- Wiederkehrende Ausgaben -->
+    <section class="card" id="recCard">
+      <h2>🔁 Wiederkehrende Ausgaben</h2>
+      <p class="muted">Werden jeden Monat am gleichen Tag automatisch eingetragen. Einrichten: beim Eintragen „Jeden Monat wiederholen“ anhaken.</p>
+      <div id="recList"></div>
     </section>
 
     <!-- Daten -->

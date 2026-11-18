@@ -80,8 +80,10 @@ h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
     "form cats"
     "trend cats"
     "list list"
+    "rec rec"
     "data data";
 }
+#recCard { grid-area: rec; }
 #formCard { grid-area: form; }
 .stats { grid-area: stats; }
 #catCard { grid-area: cats; }
@@ -89,7 +91,7 @@ h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
 #listCard { grid-area: list; }
 .data-card { grid-area: data; }
 @media (max-width: 820px) {
-  .layout { grid-template-columns: 1fr; grid-template-areas: "form" "stats" "cats" "trend" "list" "data"; }
+  .layout { grid-template-columns: 1fr; grid-template-areas: "form" "stats" "cats" "trend" "list" "rec" "data"; }
 }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-width: 0; }
@@ -206,6 +208,28 @@ form .seg-opt { display: block; margin: 0; position: relative; cursor: pointer; 
 }
 @media (hover: none) { .cat-row:hover { background: none; } }
 .item-actions button:hover { color: var(--ink); background: var(--page); }
+
+/* Wiederholen-Häkchen */
+form label.check-row { flex-direction: row; align-items: center; gap: 10px; color: var(--ink); font-size: 15px; cursor: pointer; min-height: 44px; }
+.check-row input { width: 22px; height: 22px; min-height: 0; margin: 0; flex: none; accent-color: var(--accent); }
+.check-row small { color: var(--muted); font-size: 12px; }
+
+/* Wiederkehrende Ausgaben */
+.rec-item { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--grid); }
+.rec-item:last-child { border-bottom: 0; }
+.rec-item button { background: none; border: 0; color: var(--muted); cursor: pointer; width: 40px; height: 40px; border-radius: 8px; font-size: 16px; }
+.rec-item button:hover { color: var(--ink); background: var(--page); }
+
+/* Backup-Hinweis */
+.banner-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+.banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin: 8px 0; padding: 12px 16px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--warn);
+}
+.banner[hidden] { display: none; }
+.banner-text { font-size: 14px; }
+.banner-actions { display: flex; gap: 8px; }
 
 /* Daten */
 .data-actions { display: flex; gap: 8px; flex-wrap: wrap; }
